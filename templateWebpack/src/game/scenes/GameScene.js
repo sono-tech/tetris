@@ -48,6 +48,8 @@ export default class GameScene extends Phaser.Scene {
         this.score = 0;
         this.lastDrop = 0;
         this.soundGenerator = null;  // 初期化を遅延
+        this.isBgmEnabled = true;
+        this.isSeEnabled = true;
     }
 
     create() {
@@ -63,10 +65,26 @@ export default class GameScene extends Phaser.Scene {
         // シーンが一時停止中でもキーイベントを受け取れるように設定
         this.input.keyboard.addCapture(['R']);
 
+        // サウンド設定ボタンを作成
+        this.createSoundButtons();
+
         // ユーザーアクション後にAudioContextを初期化
         this.input.keyboard.on('keydown', () => {
             if (!this.soundGenerator) {
                 this.soundGenerator = new SoundGenerator();
+                if (this.isBgmEnabled) {
+                    this.soundGenerator.startBGM();  // BGMを開始
+                }
+            }
+        });
+
+        // マウスクリックでも初期化できるように
+        this.input.on('pointerdown', () => {
+            if (!this.soundGenerator) {
+                this.soundGenerator = new SoundGenerator();
+                if (this.isBgmEnabled) {
+                    this.soundGenerator.startBGM();  // BGMを開始
+                }
             }
         });
     }
@@ -105,7 +123,10 @@ export default class GameScene extends Phaser.Scene {
             '操作方法:',
             '← → : 左右移動',
             '↑ : 回転',
-            '↓ : 下に移動'
+            '↓ : 下に移動',
+            'R : リスタート',
+            'M : BGM ON/OFF',
+            'S : SE ON/OFF'
         ];
 
         const style = {
@@ -271,6 +292,17 @@ export default class GameScene extends Phaser.Scene {
                 console.log('Game is not in game over state');
             }
         });
+
+        // サウンド設定用のキー
+        this.input.keyboard.on('keydown-M', () => {
+            this.isBgmEnabled = this.soundGenerator.toggleBGM();
+            this.updateSoundButtonText();
+        });
+
+        this.input.keyboard.on('keydown-S', () => {
+            this.isSeEnabled = this.soundGenerator.toggleSE();
+            this.updateSoundButtonText();
+        });
     }
 
     movePiece(dx) {
@@ -306,6 +338,7 @@ export default class GameScene extends Phaser.Scene {
                 this.gameOverText.setVisible(true);
                 if (this.soundGenerator) {
                     this.soundGenerator.generateGameOverSound();
+                    this.soundGenerator.stopBGM();  // ゲームオーバー時にBGMを停止
                 }
                 console.log('Game Over - Game over state set');
             }
@@ -476,6 +509,11 @@ export default class GameScene extends Phaser.Scene {
             // シーンを再開
             this.scene.resume();
             this.lastDrop = this.time.now;
+
+            // BGMを再開
+            if (this.soundGenerator) {
+                this.soundGenerator.startBGM();
+            }
             
             console.log('Game restarted - New state:', {
                 gameOver: this.gameOver,
@@ -483,5 +521,44 @@ export default class GameScene extends Phaser.Scene {
                 scenePaused: this.scene.isPaused()
             });
         }
+    }
+
+    createSoundButtons() {
+        // BGMボタン
+        this.bgmButton = this.add.text(600, 250, 'BGM: ON', {
+            fontSize: '16px',
+            fill: '#fff',
+            backgroundColor: '#000',
+            padding: { x: 10, y: 5 }
+        })
+        .setInteractive()
+        .on('pointerdown', () => {
+            if (!this.soundGenerator) {
+                this.soundGenerator = new SoundGenerator();
+            }
+            this.isBgmEnabled = this.soundGenerator.toggleBGM();
+            this.updateSoundButtonText();
+        });
+
+        // SEボタン
+        this.seButton = this.add.text(600, 280, 'SE: ON', {
+            fontSize: '16px',
+            fill: '#fff',
+            backgroundColor: '#000',
+            padding: { x: 10, y: 5 }
+        })
+        .setInteractive()
+        .on('pointerdown', () => {
+            if (!this.soundGenerator) {
+                this.soundGenerator = new SoundGenerator();
+            }
+            this.isSeEnabled = this.soundGenerator.toggleSE();
+            this.updateSoundButtonText();
+        });
+    }
+
+    updateSoundButtonText() {
+        this.bgmButton.setText(`BGM: ${this.isBgmEnabled ? 'ON' : 'OFF'}`);
+        this.seButton.setText(`SE: ${this.isSeEnabled ? 'ON' : 'OFF'}`);
     }
 } 
