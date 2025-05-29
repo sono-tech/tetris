@@ -202,14 +202,15 @@ export default class SoundGenerator {
     // 着地音を生成
     generateDropSound() {
         if (!this.isSeEnabled) return;
+        
         const oscillator = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(100, this.audioContext.currentTime + 0.2);
+        oscillator.frequency.setValueAtTime(300, this.audioContext.currentTime);  // 開始周波数を上げる
+        oscillator.frequency.exponentialRampToValueAtTime(100, this.audioContext.currentTime + 0.2);  // 終了周波数も調整
         
-        gainNode.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.8, this.audioContext.currentTime);  // 音量を大きくする
         gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
         
         oscillator.connect(gainNode);
