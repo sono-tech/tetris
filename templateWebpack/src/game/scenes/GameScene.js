@@ -1,0 +1,302 @@
+import Phaser from 'phaser';
+
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 18;
+const BLOCK_SIZE = 30;
+const BOARD_OFFSET_X = 250;
+const BOARD_OFFSET_Y = 20;  // 上部の余白を20pxに調整
+
+const TETROMINOES = {
+    I: {
+        shape: [[1, 1, 1, 1]],
+        color: 0x00ffff
+    },
+    O: {
+        shape: [[1, 1], [1, 1]],
+        color: 0xffff00
+    },
+    T: {
+        shape: [[0, 1, 0], [1, 1, 1]],
+        color: 0x800080
+    },
+    S: {
+        shape: [[0, 1, 1], [1, 1, 0]],
+        color: 0x00ff00
+    },
+    Z: {
+        shape: [[1, 1, 0], [0, 1, 1]],
+        color: 0xff0000
+    },
+    J: {
+        shape: [[1, 0, 0], [1, 1, 1]],
+        color: 0x0000ff
+    },
+    L: {
+        shape: [[0, 0, 1], [1, 1, 1]],
+        color: 0xffa500
+    }
+};
+
+export default class GameScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'GameScene' });
+        this.board = [];
+        this.currentPiece = null;
+        this.gameOver = false;
+        this.score = 0;
+        this.lastDrop = 0;
+    }
+
+    create() {
+        this.createBoard();
+        this.createScoreText();
+        this.createControlsText();
+        this.spawnPiece();
+        this.setupInput();
+        this.lastDrop = 0;
+    }
+
+    createBoard() {
+        // ボードの初期化
+        for (let y = 0; y < BOARD_HEIGHT; y++) {
+            this.board[y] = new Array(BOARD_WIDTH).fill(0);
+        }
+
+        // ボードの描画
+        const graphics = this.add.graphics();
+        graphics.lineStyle(1, 0xffffff);
+        
+        for (let y = 0; y < BOARD_HEIGHT; y++) {
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                graphics.strokeRect(
+                    x * BLOCK_SIZE + BOARD_OFFSET_X,
+                    y * BLOCK_SIZE + BOARD_OFFSET_Y,
+                    BLOCK_SIZE,
+                    BLOCK_SIZE
+                );
+            }
+        }
+    }
+
+    createScoreText() {
+        this.scoreText = this.add.text(50, 50, 'Score: 0', {
+            fontSize: '24px',
+            fill: '#fff'
+        });
+    }
+
+    createControlsText() {
+        const controls = [
+            '操作方法:',
+            '← → : 左右移動',
+            '↑ : 回転',
+            '↓ : 下に移動'
+        ];
+
+        const style = {
+            fontSize: '20px',
+            fill: '#fff',
+            align: 'left'
+        };
+
+        controls.forEach((text, index) => {
+            this.add.text(50, 100 + (index * 30), text, style);
+        });
+    }
+
+    spawnPiece() {
+        const pieces = Object.keys(TETROMINOES);
+        const randomPiece = pieces[Math.floor(Math.random() * pieces.length)];
+        const piece = TETROMINOES[randomPiece];
+
+        this.currentPiece = {
+            shape: piece.shape,
+            color: piece.color,
+            x: Math.floor(BOARD_WIDTH / 2) - Math.floor(piece.shape[0].length / 2),
+            y: 0
+        };
+
+        // 新しいテトリミノを描画する前に、ボードの状態を再描画
+        this.redrawBoard();
+        this.drawPiece();
+    }
+
+    drawPiece() {
+        if (this.pieceGraphics) {
+            this.pieceGraphics.clear();
+        } else {
+            this.pieceGraphics = this.add.graphics();
+        }
+
+        if (this.currentPiece) {
+            this.pieceGraphics.fillStyle(this.currentPiece.color);
+            
+            for (let y = 0; y < this.currentPiece.shape.length; y++) {
+                for (let x = 0; x < this.currentPiece.shape[y].length; x++) {
+                    if (this.currentPiece.shape[y][x]) {
+                        this.pieceGraphics.fillRect(
+                            (this.currentPiece.x + x) * BLOCK_SIZE + BOARD_OFFSET_X,
+                            (this.currentPiece.y + y) * BLOCK_SIZE + BOARD_OFFSET_Y,
+                            BLOCK_SIZE - 1,
+                            BLOCK_SIZE - 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    setupInput() {
+        this.input.keyboard.on('keydown-LEFT', () => this.movePiece(-1));
+        this.input.keyboard.on('keydown-RIGHT', () => this.movePiece(1));
+        this.input.keyboard.on('keydown-DOWN', () => this.moveDown());
+        this.input.keyboard.on('keydown-UP', () => this.rotatePiece());
+    }
+
+    movePiece(dx) {
+        this.currentPiece.x += dx;
+        if (this.checkCollision()) {
+            this.currentPiece.x -= dx;
+        } else {
+            this.drawPiece();
+        }
+    }
+
+    moveDown() {
+        this.currentPiece.y++;
+        if (this.checkCollision()) {
+            this.currentPiece.y--;
+            this.lockPiece();
+            this.clearLines();
+            this.redrawBoard();  // ボードを再描画
+            this.spawnPiece();
+            if (this.checkCollision()) {
+                this.gameOver = true;
+                this.scene.pause();
+            }
+        } else {
+            this.drawPiece();
+        }
+    }
+
+    rotatePiece() {
+        const originalShape = this.currentPiece.shape;
+        const rows = originalShape.length;
+        const cols = originalShape[0].length;
+        const rotated = Array(cols).fill().map(() => Array(rows).fill(0));
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                rotated[x][rows - 1 - y] = originalShape[y][x];
+            }
+        }
+
+        this.currentPiece.shape = rotated;
+        if (this.checkCollision()) {
+            this.currentPiece.shape = originalShape;
+        } else {
+            this.drawPiece();
+        }
+    }
+
+    checkCollision() {
+        for (let y = 0; y < this.currentPiece.shape.length; y++) {
+            for (let x = 0; x < this.currentPiece.shape[y].length; x++) {
+                if (this.currentPiece.shape[y][x]) {
+                    const boardX = this.currentPiece.x + x;
+                    const boardY = this.currentPiece.y + y;
+
+                    if (
+                        boardX < 0 ||
+                        boardX >= BOARD_WIDTH ||
+                        boardY >= BOARD_HEIGHT ||
+                        (boardY >= 0 && this.board[boardY][boardX])
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    lockPiece() {
+        for (let y = 0; y < this.currentPiece.shape.length; y++) {
+            for (let x = 0; x < this.currentPiece.shape[y].length; x++) {
+                if (this.currentPiece.shape[y][x]) {
+                    const boardY = this.currentPiece.y + y;
+                    const boardX = this.currentPiece.x + x;
+                    if (boardY >= 0) {
+                        this.board[boardY][boardX] = this.currentPiece.color;
+                    }
+                }
+            }
+        }
+    }
+
+    clearLines() {
+        let linesCleared = 0;
+        
+        for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+            if (this.board[y].every(cell => cell !== 0)) {
+                this.board.splice(y, 1);
+                this.board.unshift(new Array(BOARD_WIDTH).fill(0));
+                linesCleared++;
+                y++;
+            }
+        }
+
+        if (linesCleared > 0) {
+            this.score += linesCleared * 100;
+            this.scoreText.setText(`Score: ${this.score}`);
+            this.redrawBoard();
+        }
+    }
+
+    redrawBoard() {
+        if (this.boardGraphics) {
+            this.boardGraphics.clear();
+        } else {
+            this.boardGraphics = this.add.graphics();
+        }
+
+        // ボードの背景を描画
+        this.boardGraphics.fillStyle(0x000000);
+        this.boardGraphics.fillRect(
+            BOARD_OFFSET_X,
+            BOARD_OFFSET_Y,
+            BOARD_WIDTH * BLOCK_SIZE,
+            BOARD_HEIGHT * BLOCK_SIZE
+        );
+
+        // 固定されたブロックを描画
+        for (let y = 0; y < BOARD_HEIGHT; y++) {
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                if (this.board[y][x]) {
+                    this.boardGraphics.fillStyle(this.board[y][x]);
+                    this.boardGraphics.fillRect(
+                        x * BLOCK_SIZE + BOARD_OFFSET_X,
+                        y * BLOCK_SIZE + BOARD_OFFSET_Y,
+                        BLOCK_SIZE - 1,
+                        BLOCK_SIZE - 1
+                    );
+                }
+            }
+        }
+    }
+
+    update() {
+        if (!this.gameOver) {
+            if (!this.lastDrop) {
+                this.lastDrop = this.time.now;
+            }
+            
+            if (this.time.now > this.lastDrop) {
+                this.moveDown();
+                this.lastDrop = this.time.now + 1000;
+            }
+            
+            this.drawPiece();
+        }
+    }
+} 
