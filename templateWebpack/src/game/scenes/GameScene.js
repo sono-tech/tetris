@@ -42,6 +42,7 @@ export default class GameScene extends Phaser.Scene {
         super({ key: 'GameScene' });
         this.board = [];
         this.currentPiece = null;
+        this.nextPiece = null;  // 次のブロックを保持
         this.gameOver = false;
         this.score = 0;
         this.lastDrop = 0;
@@ -51,6 +52,7 @@ export default class GameScene extends Phaser.Scene {
         this.createBoard();
         this.createScoreText();
         this.createControlsText();
+        this.createNextPiecePreview();  // 次のブロック表示用の領域を作成
         this.spawnPiece();
         this.setupInput();
         this.lastDrop = 0;
@@ -124,21 +126,90 @@ export default class GameScene extends Phaser.Scene {
         this.gameOverText.setVisible(false);
     }
 
+    createNextPiecePreview() {
+        // 次のブロック表示用のテキスト
+        this.add.text(600, 50, 'Next:', {
+            fontSize: '24px',
+            fill: '#fff'
+        });
+
+        // 次のブロック表示用の背景
+        this.nextPieceGraphics = this.add.graphics();
+        this.nextPieceGraphics.fillStyle(0x000000);
+        this.nextPieceGraphics.fillRect(600, 80, 120, 120);
+        this.nextPieceGraphics.lineStyle(1, 0xffffff);
+        this.nextPieceGraphics.strokeRect(600, 80, 120, 120);
+    }
+
+    drawNextPiece() {
+        if (this.nextPiecePreviewGraphics) {
+            this.nextPiecePreviewGraphics.clear();
+        } else {
+            this.nextPiecePreviewGraphics = this.add.graphics();
+        }
+
+        if (this.nextPiece) {
+            this.nextPiecePreviewGraphics.fillStyle(this.nextPiece.color);
+            
+            // プレビュー表示用のオフセット計算
+            const offsetX = 600 + (120 - this.nextPiece.shape[0].length * BLOCK_SIZE) / 2;
+            const offsetY = 80 + (120 - this.nextPiece.shape.length * BLOCK_SIZE) / 2;
+            
+            for (let y = 0; y < this.nextPiece.shape.length; y++) {
+                for (let x = 0; x < this.nextPiece.shape[y].length; x++) {
+                    if (this.nextPiece.shape[y][x]) {
+                        this.nextPiecePreviewGraphics.fillRect(
+                            offsetX + x * BLOCK_SIZE,
+                            offsetY + y * BLOCK_SIZE,
+                            BLOCK_SIZE - 1,
+                            BLOCK_SIZE - 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     spawnPiece() {
         const pieces = Object.keys(TETROMINOES);
         const randomPiece = pieces[Math.floor(Math.random() * pieces.length)];
         const piece = TETROMINOES[randomPiece];
 
+        // 次のブロックが設定されていない場合は、現在のブロックを次のブロックとして設定
+        if (!this.nextPiece) {
+            this.nextPiece = {
+                shape: piece.shape,
+                color: piece.color
+            };
+            // 新しい次のブロックを生成
+            const nextRandomPiece = pieces[Math.floor(Math.random() * pieces.length)];
+            const nextPiece = TETROMINOES[nextRandomPiece];
+            this.nextPiece = {
+                shape: nextPiece.shape,
+                color: nextPiece.color
+            };
+        }
+
+        // 現在のブロックを次のブロックに設定
         this.currentPiece = {
-            shape: piece.shape,
-            color: piece.color,
-            x: Math.floor(BOARD_WIDTH / 2) - Math.floor(piece.shape[0].length / 2),
+            shape: this.nextPiece.shape,
+            color: this.nextPiece.color,
+            x: Math.floor(BOARD_WIDTH / 2) - Math.floor(this.nextPiece.shape[0].length / 2),
             y: 0
+        };
+
+        // 新しい次のブロックを生成
+        const nextRandomPiece = pieces[Math.floor(Math.random() * pieces.length)];
+        const nextPiece = TETROMINOES[nextRandomPiece];
+        this.nextPiece = {
+            shape: nextPiece.shape,
+            color: nextPiece.color
         };
 
         // 新しいテトリミノを描画する前に、ボードの状態を再描画
         this.redrawBoard();
         this.drawPiece();
+        this.drawNextPiece();  // 次のブロックを描画
     }
 
     drawPiece() {
@@ -367,7 +438,13 @@ export default class GameScene extends Phaser.Scene {
                 this.boardGraphics.clear();
             }
             
+            // 次のブロックのプレビューをクリア
+            if (this.nextPiecePreviewGraphics) {
+                this.nextPiecePreviewGraphics.clear();
+            }
+            
             // 新しいテトリミノを生成
+            this.nextPiece = null;  // 次のブロックをリセット
             this.spawnPiece();
             
             // シーンを再開
