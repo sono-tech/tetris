@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import SoundGenerator from '../utils/SoundGenerator';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 18;
@@ -42,17 +43,18 @@ export default class GameScene extends Phaser.Scene {
         super({ key: 'GameScene' });
         this.board = [];
         this.currentPiece = null;
-        this.nextPiece = null;  // 次のブロックを保持
+        this.nextPiece = null;
         this.gameOver = false;
         this.score = 0;
         this.lastDrop = 0;
+        this.soundGenerator = null;  // 初期化を遅延
     }
 
     create() {
         this.createBoard();
         this.createScoreText();
         this.createControlsText();
-        this.createNextPiecePreview();  // 次のブロック表示用の領域を作成
+        this.createNextPiecePreview();
         this.spawnPiece();
         this.setupInput();
         this.lastDrop = 0;
@@ -60,6 +62,13 @@ export default class GameScene extends Phaser.Scene {
 
         // シーンが一時停止中でもキーイベントを受け取れるように設定
         this.input.keyboard.addCapture(['R']);
+
+        // ユーザーアクション後にAudioContextを初期化
+        this.input.keyboard.on('keydown', () => {
+            if (!this.soundGenerator) {
+                this.soundGenerator = new SoundGenerator();
+            }
+        });
     }
 
     createBoard() {
@@ -270,6 +279,9 @@ export default class GameScene extends Phaser.Scene {
             this.currentPiece.x -= dx;
         } else {
             this.drawPiece();
+            if (this.soundGenerator) {
+                this.soundGenerator.generateMoveSound();
+            }
         }
     }
 
@@ -278,7 +290,13 @@ export default class GameScene extends Phaser.Scene {
         if (this.checkCollision()) {
             this.currentPiece.y--;
             this.lockPiece();
-            this.clearLines();
+            if (this.soundGenerator) {
+                this.soundGenerator.generateDropSound();
+            }
+            const linesCleared = this.clearLines();
+            if (linesCleared > 0 && this.soundGenerator) {
+                this.soundGenerator.generateClearSound();
+            }
             this.redrawBoard();
             this.spawnPiece();
             if (this.checkCollision()) {
@@ -286,6 +304,9 @@ export default class GameScene extends Phaser.Scene {
                 this.gameOver = true;
                 this.gameOverBackground.setVisible(true);
                 this.gameOverText.setVisible(true);
+                if (this.soundGenerator) {
+                    this.soundGenerator.generateGameOverSound();
+                }
                 console.log('Game Over - Game over state set');
             }
         } else {
@@ -310,6 +331,9 @@ export default class GameScene extends Phaser.Scene {
             this.currentPiece.shape = originalShape;
         } else {
             this.drawPiece();
+            if (this.soundGenerator) {
+                this.soundGenerator.generateRotateSound();
+            }
         }
     }
 
@@ -365,6 +389,8 @@ export default class GameScene extends Phaser.Scene {
             this.scoreText.setText(`Score: ${this.score}`);
             this.redrawBoard();
         }
+
+        return linesCleared;  // 消去したライン数を返す
     }
 
     redrawBoard() {
