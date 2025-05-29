@@ -54,6 +54,10 @@ export default class GameScene extends Phaser.Scene {
         this.spawnPiece();
         this.setupInput();
         this.lastDrop = 0;
+        this.createGameOverText();
+
+        // シーンが一時停止中でもキーイベントを受け取れるように設定
+        this.input.keyboard.addCapture(['R']);
     }
 
     createBoard() {
@@ -104,6 +108,22 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
+    createGameOverText() {
+        // 背景の半透明な黒い四角形を追加
+        this.gameOverBackground = this.add.rectangle(400, 300, 400, 200, 0x000000, 0.7);
+        this.gameOverBackground.setOrigin(0.5);
+        this.gameOverBackground.setVisible(false);
+
+        // ゲームオーバーテキスト
+        this.gameOverText = this.add.text(400, 300, 'GAME OVER\nPress R to restart', {
+            fontSize: '32px',
+            fill: '#ff0000',
+            align: 'center'
+        });
+        this.gameOverText.setOrigin(0.5);
+        this.gameOverText.setVisible(false);
+    }
+
     spawnPiece() {
         const pieces = Object.keys(TETROMINOES);
         const randomPiece = pieces[Math.floor(Math.random() * pieces.length)];
@@ -147,10 +167,30 @@ export default class GameScene extends Phaser.Scene {
     }
 
     setupInput() {
-        this.input.keyboard.on('keydown-LEFT', () => this.movePiece(-1));
-        this.input.keyboard.on('keydown-RIGHT', () => this.movePiece(1));
-        this.input.keyboard.on('keydown-DOWN', () => this.moveDown());
-        this.input.keyboard.on('keydown-UP', () => this.rotatePiece());
+        // 通常の操作キー
+        this.input.keyboard.on('keydown-LEFT', () => {
+            if (!this.gameOver) this.movePiece(-1);
+        });
+        this.input.keyboard.on('keydown-RIGHT', () => {
+            if (!this.gameOver) this.movePiece(1);
+        });
+        this.input.keyboard.on('keydown-DOWN', () => {
+            if (!this.gameOver) this.moveDown();
+        });
+        this.input.keyboard.on('keydown-UP', () => {
+            if (!this.gameOver) this.rotatePiece();
+        });
+
+        // リスタート用のキー設定
+        this.input.keyboard.on('keydown-R', () => {
+            console.log('R key pressed - Current gameOver state:', this.gameOver);
+            if (this.gameOver) {
+                console.log('Attempting to restart game...');
+                this.restartGame();
+            } else {
+                console.log('Game is not in game over state');
+            }
+        });
     }
 
     movePiece(dx) {
@@ -168,11 +208,14 @@ export default class GameScene extends Phaser.Scene {
             this.currentPiece.y--;
             this.lockPiece();
             this.clearLines();
-            this.redrawBoard();  // ボードを再描画
+            this.redrawBoard();
             this.spawnPiece();
             if (this.checkCollision()) {
+                console.log('Game Over - Starting game over sequence');
                 this.gameOver = true;
-                this.scene.pause();
+                this.gameOverBackground.setVisible(true);
+                this.gameOverText.setVisible(true);
+                console.log('Game Over - Game over state set');
             }
         } else {
             this.drawPiece();
@@ -297,6 +340,45 @@ export default class GameScene extends Phaser.Scene {
             }
             
             this.drawPiece();
+        }
+    }
+
+    restartGame() {
+        console.log('Restarting game... Current state:', {
+            gameOver: this.gameOver,
+            sceneActive: this.scene.isActive(),
+            scenePaused: this.scene.isPaused()
+        });
+
+        if (this.gameOver) {
+            // ゲームの状態をリセット
+            this.board = [];
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                this.board[y] = new Array(BOARD_WIDTH).fill(0);
+            }
+            this.score = 0;
+            this.scoreText.setText('Score: 0');
+            this.gameOver = false;
+            this.gameOverBackground.setVisible(false);
+            this.gameOverText.setVisible(false);
+            
+            // ボードをクリア
+            if (this.boardGraphics) {
+                this.boardGraphics.clear();
+            }
+            
+            // 新しいテトリミノを生成
+            this.spawnPiece();
+            
+            // シーンを再開
+            this.scene.resume();
+            this.lastDrop = this.time.now;
+            
+            console.log('Game restarted - New state:', {
+                gameOver: this.gameOver,
+                sceneActive: this.scene.isActive(),
+                scenePaused: this.scene.isPaused()
+            });
         }
     }
 } 
