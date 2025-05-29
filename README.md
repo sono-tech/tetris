@@ -7,7 +7,7 @@
 
 ## ゲーム画面
 
-![ゲーム画面](templateWebpack/screenshot.png)
+![ゲーム画面](templateWebpack/tetris-screenshot.png)
 
 ### ゲームの特徴
 - クラシックなテトリスのゲームプレイ
